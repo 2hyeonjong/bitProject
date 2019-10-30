@@ -14,6 +14,7 @@ class VideoBox(QtWidgets.QWidget):
     STATUS_PLAYING = 1
     STATUS_PAUSE = 2
     video_url = ""
+    whatVideo =0
     
     def __init__(self, video_url="", video_type=VIDEO_TYPE_OFFLINE, auto_play=False):
         QtWidgets.QWidget.__init__(self)
@@ -26,6 +27,7 @@ class VideoBox(QtWidgets.QWidget):
         self.status = self.STATUS_INIT  # 0: init 1:playing 2: pause
         self.greenLight = 100
         self.redLight =250
+        self.num = 42
         self.pictureLabel = QtWidgets.QLabel()
         init_image = QtGui.QPixmap("./main.PNG").scaled(1300, 750)
         self.pictureLabel.setPixmap(init_image)
@@ -39,8 +41,8 @@ class VideoBox(QtWidgets.QWidget):
         self.Vtimer = VideoTimer()
         self.old_counter = QtWidgets.QTextBrowser()
         self.old_counter.setStyleSheet('font: 36pt "Sans Serif";')
-        self.Vtimer.signalFor_dataFor_normal.connect(self._print_dataFor_normal)
-        self.Vtimer.signalFor_dataFor_old.connect(self._print_dataFor_old)
+        self.Vtimer.signalFor_frame.connect(self._print_dataFor_normal)
+        self.Vtimer.signalFor_frame.connect(self._print_dataFor_old)
 
         self.verticalLayoutWidget = QtWidgets.QWidget()
         self.verticalLayoutWidget.setObjectName("verticalLayoutWidget")
@@ -51,7 +53,7 @@ class VideoBox(QtWidgets.QWidget):
         
         self.red_light = QtWidgets.QFrame(self.verticalLayoutWidget)
         self.red_light.setStyleSheet("background-color: rgb({}, 0, 0);".format(self.redLight))
-        self.Vtimer.signalFor_light.connect(self._light)
+        self.Vtimer.signalFor_frame.connect(self._light)
         self.red_light.setFrameShape(QtWidgets.QFrame.StyledPanel)
         self.red_light.setFrameShadow(QtWidgets.QFrame.Raised)
         self.red_light.setObjectName("red_light")
@@ -71,7 +73,7 @@ class VideoBox(QtWidgets.QWidget):
         self.lcdNumber.setObjectName("lcdNumber")
         self.lcdNumber.setDigitCount(2)
         self.lcdNumber.display(0)
-        self.Vtimer.signalFor_countdown.connect(self._count_down)
+        self.Vtimer.signalFor_frame.connect(self._count_down)
         self.verticalLayout.addWidget(self.lcdNumber)
 
         self._slider = QtWidgets.QSlider(self)
@@ -82,7 +84,7 @@ class VideoBox(QtWidgets.QWidget):
        
         self._slider.valueChanged.connect(self.slider_moved) 
         self._slider.setObjectName("slider")
-        #self.Vtimer.SignalFor_frame.connect(self.slider_moved)
+        self.Vtimer.signalFor_frame.connect(self.slider_moved)
         self._slider.sliderReleased.connect(self.changed_slider)
 
         _trafficSign_layout = QtWidgets.QHBoxLayout()
@@ -103,8 +105,8 @@ class VideoBox(QtWidgets.QWidget):
         _controller_layout.addWidget(self.label)
 
         _buttonForVideo = QtWidgets.QHBoxLayout()
-        self._buttonForNormal = QtWidgets.QPushButton("Normal")
-        self._buttonForOld = QtWidgets.QPushButton("Old")
+        self._buttonForNormal = QtWidgets.QPushButton("object_detecting")
+        self._buttonForOld = QtWidgets.QPushButton("object_tracking")
         self._buttonForNormal.clicked.connect(self.openNormal)
         self._buttonForOld.clicked.connect(self.openOld)    
         _buttonForVideo.addWidget(self._buttonForNormal)
@@ -125,8 +127,6 @@ class VideoBox(QtWidgets.QWidget):
         
         self.setLayout(layout)
 
-        # timer 
-        #self.timer = VideoTimer()
         self.Vtimer.timeSignal.signal[str].connect(self.show_video_images)
 
         # video
@@ -136,62 +136,128 @@ class VideoBox(QtWidgets.QWidget):
             if self.auto_play:
                 self.switch_video()
             # self.videoWriter = VideoWriter('*.mp4', VideoWriter_fourcc('M', 'J', 'P', 'G'), self.fps, size)
-            
-    #@QtCore.pyqtSlot(int)
-    @QtCore.pyqtSlot(int)
-    def slider_moved(self ,position):
-        _min = 0
-        _sec = int(position/30)
-        if _sec >61:
-            _sec = 0
-            _min +=1
-        self.label.setText('%02d:%02d' %(_min ,_sec))
+
     def openNormal(self):
-        self.set_video("/home/bit205/Desktop/models/research/object_detection/output/20191016_131747.avi", VideoBox.VIDEO_TYPE_OFFLINE, False)
-        self.Vtimer.i =0
+        self.set_video("/home/bit205/Desktop/models/research/object_detection/videos/output/test_crosswalk03.avi", VideoBox.VIDEO_TYPE_OFFLINE, False)
         self.Vtimer.frame =0
+        self.whatVideo = 0
+        self._slider.setValue(0)
+        self.lcdNumber.display(0)
+        self.red_light.setStyleSheet("background-color: rgb({}, 0, 0);".format(255))
+        self.green_light.setStyleSheet("background-color: rgb(0, {}, 0);".format(100))
+
 
     def openOld(self):
-        self.set_video("/home/bit205/Desktop/models/research/object_detection/output/20191016_132747.avi", VideoBox.VIDEO_TYPE_OFFLINE, False)
-        self.Vtimer.i =0
+        self.set_video("/home/bit205/Desktop/models/research/object_detection/videos/output/finall_detect2.mp4", VideoBox.VIDEO_TYPE_OFFLINE, False)
         self.Vtimer.frame =0
+        self.whatVideo = 1
+        self._slider.setValue(0)
+        self.lcdNumber.display(0)   
+        self.red_light.setStyleSheet("background-color: rgb({}, 0, 0);".format(255))
+        self.green_light.setStyleSheet("background-color: rgb(0, {}, 0);".format(100))
+    #@QtCore.pyqtSlot(int)
+    @QtCore.pyqtSlot(int)
+    def slider_moved(self ,frame):
+        _min = int(frame/30)/60
+        _sec = int(frame/30)%60
+        self.label.setText('%02d:%02d' %(_min ,_sec))
+    
+    @QtCore.pyqtSlot(int)
+    def _count_down(self,frame):
+        '''
+        if self.whatVideo !=1:
+            x=2297
+            y=x+30
+            i=42
+            last = x + (30*i)
+            
+            while(i):
+                if (y>self.Vtimer.frame>x):
+                    self.lcdNumber.display(i)
+                    break
+                else:
+                    x+=30
+                    i-=1
+                    y+=30
+                if i ==1:self.lcdNumber.display(0)
+                if x>last:
+                    break
+
+        if self.whatVideo ==1:                
+            x=2570
+            y=x+30
+            i=47
+            last = x + (30*i)
+            
+            while(i):
+                if (y>self.Vtimer.frame>x):
+                    self.lcdNumber.display(i)
+                    break
+                else:
+                    x+=30
+                    i-=1
+                    y+=30
+                if i ==1:self.lcdNumber.display(0)
+                if x>last:
+                    break        
+        #if self.Vtimer.frame > :
+        #    self.lcdNumber.display(0)
+        '''
+
 
     @QtCore.pyqtSlot(int)
-    def _print_dataFor_normal(self,number):
-        self.number = number
-        self.display.setText('The number of the elderly : {}'.format(self.number))
+    def _print_dataFor_normal(self,frame):
+        if self.whatVideo == 0 and self.Vtimer.totalFrame > frame:
+            number=self.Vtimer.dataFor_normal[frame]
+            self.display.setText('The number of the elderly : {}'.format(number))
+        if self.Vtimer.totalFrame == frame:
+            self._slider.setValue(0)
+
 
     @QtCore.pyqtSlot(int)
-    def _print_dataFor_old(self,number):
-        self.number = number
-        self.display.setText('The number of the elderly : {}'.format(self.number))
-    '''
-    @QtCore.pyqtSlot(int)
-    def _count_down(self,count):
-        if self.greenLight != 255:
-            self.lcdNumber.display(0)
-        else :
-            self.lcdNumber.display(count)   
-    '''
-    @QtCore.pyqtSlot(int,int)
-    def _light(self,frame,result):  
-        change_light = 2297
-        #if result > 0:
-        self.frame = frame
-        green_time = (30*40) +change_light
-        if  change_light< frame < green_time:
-            self.red_light.setStyleSheet("background-color: rgb({}, 0, 0);".format(100))
-            self.green_light.setStyleSheet("background-color: rgb(0, {}, 0);".format(255))
-            self.greenLight =255
+    def _print_dataFor_old(self,frame):
+        if self.whatVideo == 1 and self.Vtimer.totalFrame > frame:
+            number=self.Vtimer.dataFor_old[frame]
+            self.display.setText('The number of the elderly : {}'.format(number))   
+        if self.Vtimer.totalFrame == frame:
+            self._slider.setValue(0)
 
-        else :
-            self.red_light.setStyleSheet("background-color: rgb({}, 0, 0);".format(255))
-            self.green_light.setStyleSheet("background-color: rgb(0, {}, 0);".format(100))
+
+    @QtCore.pyqtSlot(int)
+    def _light(self,frame): 
+        if self.whatVideo !=1: 
+            change_light = 2297
+            #if result > 0:
+            self.frame = frame
+            green_time = (30*42) +change_light
+            if  change_light< frame < green_time:
+                self.red_light.setStyleSheet("background-color: rgb({}, 0, 0);".format(100))
+                self.green_light.setStyleSheet("background-color: rgb(0, {}, 0);".format(255))
+                self.greenLight =255
+
+            else :
+                self.red_light.setStyleSheet("background-color: rgb({}, 0, 0);".format(255))
+                self.green_light.setStyleSheet("background-color: rgb(0, {}, 0);".format(100))
+
+        if self.whatVideo ==1: 
+            change_light = 2570
+            #if result > 0:
+            self.frame = frame
+            green_time = (30*48) +change_light
+            if  change_light< frame < green_time:
+                self.red_light.setStyleSheet("background-color: rgb({}, 0, 0);".format(100))
+                self.green_light.setStyleSheet("background-color: rgb(0, {}, 0);".format(255))
+                self.greenLight =255
+
+            else :
+                self.red_light.setStyleSheet("background-color: rgb({}, 0, 0);".format(255))
+                self.green_light.setStyleSheet("background-color: rgb(0, {}, 0);".format(100))
 
     @QtCore.pyqtSlot(int)
     def _get_totalFrame(self,totalFrame):
         totalFrame=int(totalFrame)
         self._slider.setRange(0, totalFrame)
+        print(totalFrame)
         
     def moveFrame(self, moveFrame):
         self.playCapture.set(cv2.CAP_PROP_POS_FRAMES,moveFrame)   
@@ -217,7 +283,7 @@ class VideoBox(QtWidgets.QWidget):
         fps = self.playCapture.get(cv2.CAP_PROP_FPS)
         totalFrame = self.playCapture.get(cv2.CAP_PROP_FRAME_COUNT)
         self.Vtimer.set_fps(fps)
-        self.Vtimer.set_frame(totalFrame)
+        self.Vtimer.totalFrame =totalFrame
         self.playCapture.release()
 
     def set_video(self, url, video_type=VIDEO_TYPE_OFFLINE, auto_play=False):
@@ -308,82 +374,45 @@ class Communicate(QtCore.QObject):
     signal = QtCore.pyqtSignal(str)
 
 class VideoTimer(QtCore.QThread, QtCore.QObject):
-    with open('../forNormal.pickle', 'rb') as f:
+    with open('../test3.pickle', 'rb') as f:
         dataFor_normal = pickle.load(f)
-    with open('../forOld.pickle', 'rb') as f:
+    with open('../finall_detect2.pickle', 'rb') as f:
         dataFor_old = pickle.load(f)
-    signalFor_controlLight =QtCore.pyqtSignal(int,int)
-    signalFor_dataFor_normal =QtCore.pyqtSignal(int)
-    signalFor_dataFor_old =QtCore.pyqtSignal(int)
-    signalFor_countdown =QtCore.pyqtSignal(int)
-    signalFor_light = QtCore.pyqtSignal(int,int)
-    SignalFor_frame = QtCore.pyqtSignal(int)
+    signalFor_frame = QtCore.pyqtSignal(int)
     SignalFor_totalFrame = QtCore.pyqtSignal(int)
-
+    print(dataFor_old)
     def __init__(self, frequent=20):
         QtCore.QThread.__init__(self)
         self.stopped = False
         self.frequent = frequent
         self.timeSignal = Communicate()
         self.mutex = QtCore.QMutex()
-        self.flag = True
         self.frame = 0
-        self.frameFor_time=42
-        self.frameFor_light= 0
-        self.i =0
-        self.j =0
+        
     def run(self):
         #with QtCore.QMutexLocker(self.mutex):
         self.stopped = False
         self.frame -=1
-        while True:
+        while self.totalFrame:
             self.frame +=1
-            self.SignalFor_frame.emit(self.frame)  
-
             if self.stopped == True:
                 return
-            '''
-            if self.frame%30== 0 and self.frame >= 2297:
-                self.frameFor_time -= 1
-                if self.frameFor_time < 0:
-                    self.frameFor_time =0
-                self.signalFor_countdown.emit(self.frameFor_time)
-            '''            
             self.timeSignal.signal.emit("1")
             time.sleep(1 / self.frequent)
 
+            self.signalFor_frame.emit(self.frame)
             self.SignalFor_totalFrame.emit(self.totalFrame)
-            dataFor_normal = self.dataFor_normal
-            dataFor_old = self.dataFor_old
-            self.resultFor_normal = dataFor_normal[self.i]
-            self.resultFor_old = dataFor_old[self.j]
-            if self.i < len(self.dataFor_normal) -1:
-                self.i = self.i+1
-            if self.j < len(self.dataFor_old) -1:
-                self.j = self.j+1
-            self.signalFor_dataFor_normal.emit(self.resultFor_normal)
-            self.signalFor_dataFor_old.emit(self.resultFor_old)
+            print('now Frame is:', self.frame)
 
-            self.signalFor_controlLight.emit(self.resultFor_normal, self.frameFor_time)  
-            self.signalFor_light.emit(self.frameFor_light,self.resultFor_normal)
-            self.frameFor_light +=1
-            print(self.frame)
-            #print(self.frame)          
 
     def stop(self):
-        #with QtCore.QMutexLocker(self.mutex):
         self.stopped = True
 
-    #def is_stopped(self):
-        #with QtCore.QMutexLocker(self.mutex):
-    #    return self.stopped
 
     def set_fps(self, fps):
         self.frequent = fps
     def set_frame(self, totalFrame):
         self.totalFrame = totalFrame
-    #def set_movedFrame(self, movedFrame):
-    #    self.movedFrame = movedFrame
           
 
 if __name__ == "__main__":
